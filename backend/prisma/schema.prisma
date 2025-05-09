@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+model game {
+  id          Int          @id @default(autoincrement())
+  status      game_status? @default(waiting)
+  start_time  Int?         @default(0)
+  end_time    Int?         @default(0)
+  win_room_id Int?         @default(0)
+  created     DateTime?    @default(now()) @db.Timestamp(0)
+  game_play   game_play[]
+}
+
+model game_invest {
+  id         Int       @id @default(autoincrement()) @db.UnsignedInt
+  game_id    Int
+  room_id    Int
+  total_coin Int
+  created    DateTime? @default(now()) @db.Timestamp(0)
+}
+
+model game_play {
+  id       Int       @id @default(autoincrement()) @db.UnsignedInt
+  user_id  Int
+  game_id  Int
+  room_id  Int
+  bet_coin Int       @default(0)
+  reward   Int       @default(0)
+  created  DateTime? @default(now()) @db.Timestamp(0)
+  user     user      @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "game_play_ibfk_1")
+  game     game      @relation(fields: [game_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "game_play_ibfk_2")
+
+  @@unique([user_id, game_id], map: "uniq_user_game")
+  @@index([game_id], map: "game_id")
+  @@index([room_id], map: "room_id")
+}
+
+model user {
+  id        Int         @id @default(autoincrement())
+  name      String      @default("") @db.VarChar(50)
+  address   String      @unique(map: "addr_idx") @db.VarChar(60)
+  email     String      @default("") @db.VarChar(100)
+  coins     Int?        @default(0)
+  created   DateTime?   @default(now()) @db.Timestamp(0)
+  updated   DateTime?   @default(now()) @db.Timestamp(0)
+  game_play game_play[]
+
+  @@index([name], map: "name")
+  @@index([email], map: "email")
+}
+
+model user_balance {
+  id      Int       @id @default(autoincrement()) @db.UnsignedInt
+  uid     Int
+  balance BigInt
+  created DateTime? @default(now()) @db.Timestamp(0)
+  updated DateTime? @db.Timestamp(0)
+}
+
+enum game_status {
+  waiting
+  playing
+  done
+}
