@@ -12,7 +12,6 @@ export const initGame = async (req, res) => {
 		return errorRes(res, 'Address is required');
 	}
 	try {
-
 		// 1. 获取或创建用户
 		const user = await prisma.user.upsert({
 			where: { address: addr },
@@ -20,6 +19,8 @@ export const initGame = async (req, res) => {
 			update: {},
 			select: { id: true, coins: true },
 		});
+		const cacheKey = "user_id_to_address";
+		await redisService.hSetNX(cacheKey, `uid_${user.id}`, addr);
 
 		// 2. 获取或创建游戏
 		const activeGame = await prisma.game.findFirst({
@@ -42,18 +43,43 @@ export const initGame = async (req, res) => {
 			}),
 		]);
 
-		// 4. 计算每个房间的投注总额
-		const roomInfo = await prisma.game_play.groupBy({
+		// 4. 获取本局游戏中所有user 信息
+		const gamePlayInfo = await prisma.game_play.findMany({
 			where: { game_id: gameId },
-			by: ['room_id'],
-			_sum: { bet_coin: true },
+			select: { room_id: true, bet_coin: true, user_id: true },
+			orderBy: { id: 'desc' },
 		});
 
-		let roomBet = [];
-		if (roomInfo) {
-			roomInfo.forEach(room => {
-				roomBet.push({ room_id: room.room_id, bet_coin: room._sum.bet_coin });
-			});
+		let roomBet = {};
+		let roomUsers = {};
+		if (gamePlayInfo) {
+			const processAllRooms = async function () {
+				for (const info of gamePlayInfo) {
+					const tempRoomId = info.room_id;
+
+					// 处理房间下注金额
+					roomBet[tempRoomId] = (roomBet[tempRoomId] || 0) + info.bet_coin;
+
+					// 初始化用户数组
+					if (!roomUsers[tempRoomId]) {
+						roomUsers[tempRoomId] = [];
+					}
+
+					if (roomUsers[tempRoomId].length < 10) {
+						// 从Redis获取用户地址
+						const userAddr = await redisService.hGet(cacheKey, `uid_${info.user_id}`);
+
+						if (userAddr) {
+							roomUsers[tempRoomId].push({
+								user_id: info.user_id,
+								user_addr: userAddr,
+								user_bet: info.bet_coin,
+							});
+						}
+					}
+				}
+			}
+			await processAllRooms();
 		}
 		const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
@@ -64,10 +90,8 @@ export const initGame = async (req, res) => {
 				balance: user.coins,
 				selectRoomId: getGameInfo?.room_id,
 			},
-			room: roomInfo.map(room => ({
-				room_id: room.room_id,
-				bet_coin: room._sum.bet_coin,
-			})),
+			roomBet,
+			roomUsers,
 			game: {
 				gameId,
 				status: activeGame.status,

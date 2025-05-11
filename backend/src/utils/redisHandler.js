@@ -83,6 +83,41 @@ class RedisService {
         return result[0];
     }
 
+    async hSet(hashKey, field, value) {
+        try {
+            return await this.client.hSet(hashKey, field, value);
+        } catch (error) {
+            console.error(`Redis hSet error for hash ${hashKey}, field ${field}:`, error);
+            throw error;
+        }
+    }
+
+    async hGet(hashKey, field) {
+        try {
+            const data = await this.client.hGet(hashKey, field);
+            return data ? data : null;
+        } catch (error) {
+            console.error(`Redis hGet error for hash ${hashKey}, field ${field}:`, error);
+            throw error;
+        }
+    }
+
+    async hExists(hashKey, field) {
+        try {
+            return await this.client.hExists(hashKey, field);
+        } catch (error) {
+            console.error(`Redis hExists error for hash ${hashKey}, field ${field}:`, error);
+            throw error;
+        }
+    }
+    async hSetNX(hashKey, field, value) {
+        try {
+            return await this.client.hSetNX(hashKey, field, value);
+        } catch (error) {
+            console.error(`Redis hSetNX error for hash ${hashKey}, field ${field}:`, error);
+            throw error;
+        }
+    }
     // 其他 Redis 操作方法...
 }
 export const redisService = new RedisService();
