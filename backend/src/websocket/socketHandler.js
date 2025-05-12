@@ -68,7 +68,7 @@ export const initSocketServer = (server) => {
     });
 
     io.on('connection', async (socket) => {
-        console.log(`User connected:`);
+        console.log(`User connected`);
 
         socket.on('error', (err) => {
             console.error(`[${socket.id}] Socket错误:`, {
@@ -82,85 +82,23 @@ export const initSocketServer = (server) => {
             io.emit('user_joined', data);
         });
 
-        // 用户投入金币
-        socket.on('place_bet', async (betAmount) => {
-            try {
-                const user = await prisma.user.findUnique({
-                    where: { id: socket.user.id },
-                    include: { room: true }
-                });
-                if (!user.room) {
-                    socket.emit('error', 'User not in a room');
-                    return;
-                }
-                if (user.balance < betAmount) {
-                    socket.emit('error', 'Insufficient balance');
-                    return;
-                }
-                await prisma.$transaction([
-                    prisma.user.update({
-                        where: { id: user.id },
-                        data: { balance: { decrement: betAmount } }
-                    }),
-                    prisma.bet.create({
-                        data: {
-                            userId: user.id,
-                            roomId: user.roomId,
-                            amount: betAmount
-                        }
-                    })
-                ]);
-                io.to(user.roomId.toString()).emit('bet_placed', {
-                    userId: user.id,
-                    amount: betAmount
-                });
-            } catch (err) {
-                socket.emit('error', err.message);
-            }
-        });
-
         // 用户离开房间
-        socket.on('leave_room', async () => {
-            try {
-                const user = await prisma.user.findUnique({
-                    where: { id: socket.user.id }
-                });
-                if (user.roomId) {
-                    await prisma.user.update({
-                        where: { id: user.id },
-                        data: { roomId: null }
-                    });
-                    socket.leave(user.roomId.toString());
-                    io.to(user.roomId.toString()).emit('user_left', {
-                        userId: user.id
-                    });
-                }
-            } catch (err) {
-                socket.emit('error', err.message);
-            }
-        });
+        // socket.on('user_leave', async (data) => {
+        //     console.log("data123", data);
+        //     io.emit('user_leave', data);
+        // });
 
         // 用户退出游戏
-        socket.on('disconnect', async () => {
+        socket.on('disconnect', async (data) => {
             try {
-                const user = await prisma.user.findUnique({
-                    where: { id: socket.user.id }
-                });
-                if (user.roomId) {
-                    await prisma.user.update({
-                        where: { id: user.id },
-                        data: { roomId: null }
-                    });
-                    if (user.roomId) {
-                        socket.leave(user.roomId.toString());
-                        io.to(user.roomId.toString()).emit('user_left', {
-                            userId: user.id
-                        });
-                    }
-                }
+                console.log("user 离开游戏");
             } catch (err) {
                 console.error('Disconnect error:', err);
             }
+        });
+        socket.on("countdown_update",async () => {
+            console.log("countdown_update");
+            // io.emit('countdown_update', { type: "countdown_update" });
         });
     });
 

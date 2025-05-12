@@ -12,6 +12,6 @@ router.post('/selectRoom', protect, selectRoom);
 
 router.get('/testJoin/:id', testJoin);
 router.get('/testMoveTo/:id', testMoveTo);
-router.get('/testMoveBack/:id', testMoveBack);
+router.get('/testMoveBack', testMoveBack);
 
 export default router;

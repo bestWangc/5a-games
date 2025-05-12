@@ -3,8 +3,12 @@ import jwt from 'jsonwebtoken';
 import { getIO } from '../websocket/socketHandler.js';
 import { errorRes, successRes } from '../utils/responseHandler.js';
 import { redisService } from '../utils/redisHandler.js';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
+
+// 游戏状态存储
+const gameState = {};
 
 export const initGame = async (req, res) => {
 	const addr = req.body?.address?.trim();
@@ -24,8 +28,12 @@ export const initGame = async (req, res) => {
 
 		// 2. 获取或创建游戏
 		const activeGame = await prisma.game.findFirst({
-			where: { status: "waiting" },
-		}) ?? await GameSercvice.createGame();
+			where: {
+				status: {
+					not: "done"
+				}
+			},
+		});
 
 		const gameId = activeGame.id;
 
@@ -65,7 +73,7 @@ export const initGame = async (req, res) => {
 						roomUsers[tempRoomId] = [];
 					}
 
-					if (roomUsers[tempRoomId].length < 10) {
+					if (roomUsers[tempRoomId].length < 6) {
 						// 从Redis获取用户地址
 						const userAddr = await redisService.hGet(cacheKey, `uid_${info.user_id}`);
 
@@ -165,7 +173,7 @@ export const selectRoom = async (req, res) => {
 		const game = await prisma.game.findUnique({
 			where: { id: gameId }
 		});
-		if (!game || game.status != 'waiting') {
+		if (!game || game.status == 'done') {
 			return errorRes(res, 'Game is not active');
 		}
 		await prisma.game_play.upsert({
@@ -191,17 +199,90 @@ export const selectRoom = async (req, res) => {
 			gameId: gameId,
 			roomId
 		});
+
+		//查询现在游戏人数 满20开始游戏倒计时
+		const gameCount = await prisma.game_play.count({
+			where: {
+				game_id: gameId,
+				bet_coin: { gt: 0 }
+			}
+		});
+		//todo count change to 20
+		if (gameCount >= 5) {
+			await prisma.game.update({
+				where: { id: gameId },
+				data: { status: 'playing' }
+			});
+			io.emit('game_start', { gameId: gameId, type: "game_start" });
+			setTimeout(() => {
+				startCountdown(gameId, io); // 开始服务端倒计时
+			}, 1000);
+		}
+
 		return successRes(res, { message: 'Room selected successfully' });
 	} catch (err) {
 		return errorRes(res, err.message);
 	}
 };
 
+function startCountdown(gameId, io, duration = 10) {
+	gameState[gameId] = {
+		remainingTime: duration,
+		isCalculating: false,
+		timer: null
+	};
+
+	// 每秒更新倒计时
+	gameState[gameId].timer = setInterval(async () => {
+		gameState[gameId].remainingTime--;
+
+		// 广播给所有客户端
+		io.emit('countdown_update', {
+			type: "countdown_update",
+			gameId: gameId,
+			time: gameState[gameId].remainingTime
+		});
+		console.log("countdown: " + gameState[gameId].remainingTime);
+
+		// 倒计时结束且未开始结算
+		if (gameState[gameId].remainingTime <= 0 && !gameState[gameId].isCalculating) {
+			clearInterval(gameState[gameId].timer);
+			gameState[gameId].isCalculating = true;
+
+			// 1. 通知客户端倒计时结束
+			//随机选择1-8的房间
+			const randomRoomId = crypto.randomInt(1, 9);
+			io.emit('countdown_end', { gameId: gameId, type: "countdown_end", resultRoomId: randomRoomId });
+
+			// 2. 奖励结算
+			// const rewards = await calculateRewards(gameId,randomRoomId);
+
+			// 3. 广播奖励结果
+			// io.emit('reward_calculated', {
+			// 	gameId: gameId,
+			// 	rewards: rewards
+			// });
+
+			// 4. 清理状态
+			delete gameState[gameId];
+		}
+	}, 1000);
+}
+
+async function calculateRewards(gameId) {
+	// 实际项目中这里可能是数据库查询 + 复杂逻辑
+
+	return [
+		{ playerId: 'player1', reward: 'Gold: 1000' },
+		{ playerId: 'player2', reward: 'Gold: 800' }
+	];
+}
+
 export const testJoin = async (req, res) => {
 	try {
 		const io = getIO();
 		const userId = req.params.id;
-		io.emit('user_joined', { userId: userId, type: "user_joined" });
+		io.emit('user_joined', { userId: userId, type: "user_joined", address: "0x3A30103644D08Fd4eA87526625D59421895607C3" });
 		res.json({ message: `User ${userId} joined room successfully` });
 	} catch (err) {
 		res.status(500).json({ error: err.message });
@@ -221,10 +302,9 @@ export const testMoveTo = async (req, res) => {
 export const testMoveBack = async (req, res) => {
 	try {
 		const io = getIO();
-		const userId = req.params.id;
 		// io.emit('user_joined', {userId: userId,type: "user_joined"});
-		io.emit('move_back', { userId: userId, type: "move_back" });
-		res.json({ message: `User ${userId} joined room successfully` });
+		io.emit('move_back', { type: "move_back" });
+		res.json({ message: `User joined room successfully` });
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
