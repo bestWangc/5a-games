@@ -1,0 +1,30 @@
+@use '../utils' as *;
+
+/*=============================
+	1.  Modal Style
+===============================*/
+
+
+
+.modal-content{
+    // background-color:var(--tg-common-black);
+    background-color: #0f161b;
+    
+}
+.modal-header{
+    border-bottom: 0;
+}
+.modal-body{
+    // width: 80%;
+}
+.modal-footer{
+    border-top: 0;
+    & .btn-confirm{
+        color: var(--tg-common-color-black);
+            background-color: var(--tg-theme-secondary) ;
+            &:hover {
+                color: var(--tg-theme-secondary);
+                background-color: var(--tg-common-color-black);
+            }
+    }
+}
