@@ -81,6 +81,10 @@ export const initSocketServer = (server) => {
             console.log("data", data);
             io.emit('user_joined', data);
         });
+        socket.on('move_back', async (data) => {
+            console.log("data", data);
+            io.emit('move_back', { type: "move_back" });
+        });
 
         // 用户离开房间
         // socket.on('user_leave', async (data) => {

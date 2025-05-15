@@ -32,8 +32,9 @@ model game_play {
   game_id  Int
   room_id  Int
   bet_coin Int       @default(0)
-  reward   Int       @default(0)
+  reward   BigInt    @default(0)
   created  DateTime? @default(now()) @db.Timestamp(0)
+  updated  DateTime? @db.Timestamp(0)
   user     user      @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "game_play_ibfk_1")
   game     game      @relation(fields: [game_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "game_play_ibfk_2")
 
@@ -62,6 +63,12 @@ model user_balance {
   balance BigInt
   created DateTime? @default(now()) @db.Timestamp(0)
   updated DateTime? @db.Timestamp(0)
+}
+
+model batch_rewards_temp {
+  user_id Int    @id
+  reward  BigInt
+  game_id Int
 }
 
 enum game_status {
