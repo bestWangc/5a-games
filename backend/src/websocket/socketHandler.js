@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { verifyToken } from '../utils/auth.js';
 import { Server } from 'socket.io';
-import { broadcastRoomUpdate, broadcastGameStart, broadcastGameEnd } from '../utils/messageHandler.js';
 import { PrismaClient } from '@prisma/client';
 
 const ALLOWED_DOMAINS = new Set([

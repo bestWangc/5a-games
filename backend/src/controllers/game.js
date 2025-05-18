@@ -159,7 +159,6 @@ export const placeBet = async (req, res) => {
 		//通知其余人增加amount
 		const io = getIO();
 		io.emit('room_add_bet', { roomId: roomId, type: "room_add_bet", roomAmount: totalBetAmount, userAmount: gameInfo.bet_coin, userId: user_id });
-		console.log({ roomId: roomId, type: "room_add_bet", roomAmount: totalBetAmount, userAmount: gameInfo.bet_coin, userId: user_id });
 
 		return successRes(res, { userBalance: userAfterBet.coins.toString() });
 	} catch (err) {
@@ -212,11 +211,11 @@ export const selectRoom = async (req, res) => {
 		const gameCount = await prisma.game_play.count({
 			where: {
 				game_id: gameId,
-				bet_coin: { gt: 0 }
+				// bet_coin: { gt: 0 }
 			}
 		});
 		//todo count change to 20
-		if (gameCount >= 5) {
+		if (gameCount >= 20) {
 			await prisma.game.update({
 				where: { id: gameId },
 				data: { status: 'playing' }

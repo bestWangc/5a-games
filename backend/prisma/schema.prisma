@@ -51,6 +51,7 @@ model user {
   address   String      @unique(map: "addr_idx") @db.VarChar(60)
   email     String      @default("") @db.VarChar(100)
   coins     BigInt      @default(0)
+  is_bot    Int         @default(1) @db.TinyInt
   created   DateTime?   @default(now()) @db.Timestamp(0)
   updated   DateTime?   @default(now()) @db.Timestamp(0)
   game_play game_play[]
