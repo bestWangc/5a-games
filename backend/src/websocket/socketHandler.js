@@ -83,6 +83,7 @@ export const initSocketServer = (server) => {
         });
         socket.on('move_back', async (data) => {
             console.log("data", data);
+            console.log("move_back");
             io.emit('move_back', { type: "move_back" });
         });
 

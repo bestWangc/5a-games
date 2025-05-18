@@ -9,12 +9,13 @@ datasource db {
 }
 
 model game {
-  id          Int          @id @default(autoincrement())
-  status      game_status? @default(waiting)
-  start_time  Int?         @default(0)
-  end_time    Int?         @default(0)
-  win_room_id Int?         @default(0)
-  created     DateTime?    @default(now()) @db.Timestamp(0)
+  id          Int         @id @default(autoincrement())
+  status      game_status @default(waiting)
+  start_time  Int?        @default(0)
+  end_time    Int?        @default(0)
+  win_room_id Int?        @default(0)
+  created     DateTime?   @default(now()) @db.Timestamp(0)
+  updated     DateTime?   @db.Timestamp(0)
   game_play   game_play[]
 }
 
@@ -32,6 +33,7 @@ model game_play {
   game_id  Int
   room_id  Int
   bet_coin Int       @default(0)
+  status   Int       @default(0) @db.TinyInt
   reward   BigInt    @default(0)
   created  DateTime? @default(now()) @db.Timestamp(0)
   updated  DateTime? @db.Timestamp(0)
@@ -48,7 +50,7 @@ model user {
   name      String      @default("") @db.VarChar(50)
   address   String      @unique(map: "addr_idx") @db.VarChar(60)
   email     String      @default("") @db.VarChar(100)
-  coins     Int?        @default(0)
+  coins     BigInt      @default(0)
   created   DateTime?   @default(now()) @db.Timestamp(0)
   updated   DateTime?   @default(now()) @db.Timestamp(0)
   game_play game_play[]
