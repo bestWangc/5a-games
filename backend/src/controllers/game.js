@@ -433,7 +433,6 @@ export const testMoveTo = async (req, res) => {
 	try {
 		const io = getIO();
 		const userId = req.params.id;
-		// io.emit('user_joined', {userId: userId,type: "user_joined"});
 		io.emit('move_to_room', { userId: userId, type: "move_to_room" });
 		res.json({ message: `User ${userId} joined room successfully` });
 	} catch (err) {
@@ -443,7 +442,6 @@ export const testMoveTo = async (req, res) => {
 export const testMoveBack = async (req, res) => {
 	try {
 		const io = getIO();
-		// io.emit('user_joined', {userId: userId,type: "user_joined"});
 		io.emit('move_back', { type: "move_back" });
 		res.json({ message: `User joined room successfully` });
 	} catch (err) {
@@ -453,7 +451,6 @@ export const testMoveBack = async (req, res) => {
 export const testGameEnd = async (req, res) => {
 	try {
 		const io = getIO();
-		// io.emit('user_joined', {userId: userId,type: "user_joined"});
 		io.emit('game_end', { type: "game_end" });
 		res.json({ message: `User joined room successfully` });
 	} catch (err) {

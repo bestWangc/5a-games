@@ -8,6 +8,7 @@ import roomRoutes from './routes/room.js';
 import gameRoutes from './routes/game.js';
 import cron from 'node-cron';
 import { runBot } from './bot.js';
+import { initUserInfo } from './user.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -25,24 +26,25 @@ initSocketServer(server);
 
 // 每秒执行的任务
 let isTaskRunning = false;
-cron.schedule('*/4 * * * * *', async () => {
-  if (isTaskRunning) {
-    console.log('上次任务尚未完成，跳过本次执行');
-    return;
-  }
+// cron.schedule('*/4 * * * * *', async () => {
+//   if (isTaskRunning) {
+//     console.log('上次任务尚未完成，跳过本次执行');
+//     return;
+//   }
 
-  isTaskRunning = true;
-  const startTime = Date.now();
-  try {
-    console.log('任务开始:', new Date().toLocaleTimeString());
-    await runBot();
-  } catch (error) {
-    console.error('任务执行失败:', error);
-  } finally {
-    isTaskRunning = false;
-    console.log(`任务完成，耗时 ${Date.now() - startTime}ms`);
-  }
-});
+//   isTaskRunning = true;
+//   const startTime = Date.now();
+//   try {
+//     console.log('任务开始:', new Date().toLocaleTimeString());
+//     await runBot();
+//   } catch (error) {
+//     console.error('任务执行失败:', error);
+//   } finally {
+//     isTaskRunning = false;
+//     console.log(`任务完成，耗时 ${Date.now() - startTime}ms`);
+//   }
+// });
+initUserInfo();
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
