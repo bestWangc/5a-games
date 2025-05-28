@@ -105,7 +105,7 @@ const ShopDetailsArea = ({ product }: { product: IHero }) => {
                             </div>
                             <div className="shop__details-model d-flex align-items-center">
                                 <p className="model m-0">From:</p>
-                                <span className="shop__details-model-text"> Polygon/ETH Testland </span>
+                                <span className="shop__details-model-text"> SOL </span>
                             </div>
                             <div className="shop__details-qty">
                                 <div className="cart-plus-minus d-flex flex-wrap align-items-center">

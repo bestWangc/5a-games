@@ -87,7 +87,7 @@ const TrendingNftItems = () => {
                   <div className="trendingNft__item-bottom">
                       <div className="trendingNft__item-price">
                           <span className="bid">Last Bid</span>
-                          <h6 className="eth"><i className="fab fa-ethereum"></i> {item.eth} <span>Eth</span></h6>
+                          <h6 className="eth"><i className="fab fa-ethereum"></i> {item.eth} <span>SOL</span></h6>
                       </div>
                       <Link href="/shop-details" className="bid-btn">Bid <i className="fas fa-long-arrow-alt-right"></i></Link>
                   </div>
