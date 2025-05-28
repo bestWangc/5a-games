@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { verifyToken } from '../utils/auth.js';
 import { Server } from 'socket.io';
-import { broadcastRoomUpdate, broadcastGameStart, broadcastGameEnd } from '../utils/messageHandler.js';
 import { PrismaClient } from '@prisma/client';
 
 const ALLOWED_DOMAINS = new Set([
@@ -80,6 +79,11 @@ export const initSocketServer = (server) => {
         socket.on('user_joined', async (data) => {
             console.log("data", data);
             io.emit('user_joined', data);
+        });
+        socket.on('move_back', async (data) => {
+            console.log("data", data);
+            console.log("move_back");
+            io.emit('move_back', { type: "move_back" });
         });
 
         // 用户离开房间

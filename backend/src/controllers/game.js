@@ -34,6 +34,9 @@ export const initGame = async (req, res) => {
 				}
 			},
 		});
+		if (!activeGame) {
+			return errorRes(res, 'No active game');
+		}
 
 		const gameId = activeGame.id;
 
@@ -91,11 +94,10 @@ export const initGame = async (req, res) => {
 		}
 		const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
-		// 6. 构造返回数据
 		const resData = {
 			user: {
 				uid: user.id,
-				balance: user.coins,
+				balance: user.coins.toString(),
 				selectRoomId: getGameInfo?.room_id,
 			},
 			roomBet,
@@ -121,6 +123,7 @@ export const placeBet = async (req, res) => {
 	try {
 		const { amount, roomId, gameId } = req.body;
 		const realAmount = Number(amount.trim());
+		const formatAmount = realAmount * 10 ** 6;
 		if (realAmount <= 0) {
 			return errorRes(res, 'bet amount must be greater than 0');
 		}
@@ -128,14 +131,14 @@ export const placeBet = async (req, res) => {
 		let user = await prisma.user.findUnique({
 			where: { id: user_id }
 		});
-		if (user.coins < realAmount) {
+		if (user.coins < formatAmount) {
 			return errorRes(res, 'Insufficient balance');
 		}
 
 		const [userAfterBet, gameInfo] = await prisma.$transaction([
 			prisma.user.update({
 				where: { id: user_id },
-				data: { coins: { decrement: realAmount } }
+				data: { coins: { decrement: formatAmount } }
 			}),
 			prisma.game_play.update({
 				where: {
@@ -147,13 +150,17 @@ export const placeBet = async (req, res) => {
 				data: { bet_coin: { increment: realAmount } }
 			})
 		]);
-		const cacheKey = `bet_${gameInfo.id}_${roomId}`;
-		const allAmount = await redisService.incrByWithExpire(cacheKey, realAmount);
+		const result = await prisma.$queryRaw`
+			SELECT SUM(bet_coin) as total
+			FROM game_play
+			WHERE game_id = ${gameId} AND room_id = ${roomId}
+		`;
+		const totalBetAmount = Number(result[0]?.total) || 0;
 		//通知其余人增加amount
 		const io = getIO();
-		io.emit('room_add_bet', { roomId: roomId, type: "room_add_bet", amount: allAmount, userId: user_id });
+		io.emit('room_add_bet', { roomId: roomId, type: "room_add_bet", roomAmount: totalBetAmount, userAmount: gameInfo.bet_coin, userId: user_id });
 
-		return successRes(res, { userBalance: userAfterBet.coins });
+		return successRes(res, { userBalance: userAfterBet.coins.toString() });
 	} catch (err) {
 		return errorRes(res, err.message);
 	}
@@ -204,11 +211,11 @@ export const selectRoom = async (req, res) => {
 		const gameCount = await prisma.game_play.count({
 			where: {
 				game_id: gameId,
-				bet_coin: { gt: 0 }
+				// bet_coin: { gt: 0 }
 			}
 		});
 		//todo count change to 20
-		if (gameCount >= 5) {
+		if (gameCount >= 20) {
 			await prisma.game.update({
 				where: { id: gameId },
 				data: { status: 'playing' }
@@ -216,7 +223,7 @@ export const selectRoom = async (req, res) => {
 			io.emit('game_start', { gameId: gameId, type: "game_start" });
 			setTimeout(() => {
 				startCountdown(gameId, io); // 开始服务端倒计时
-			}, 1000);
+			}, 500);
 		}
 
 		return successRes(res, { message: 'Room selected successfully' });
@@ -251,31 +258,165 @@ function startCountdown(gameId, io, duration = 10) {
 
 			// 1. 通知客户端倒计时结束
 			//随机选择1-8的房间
-			const randomRoomId = crypto.randomInt(1, 9);
+			// const randomRoomId = crypto.randomInt(1, 9);
+			const randomRoomId = 4;
 			io.emit('countdown_end', { gameId: gameId, type: "countdown_end", resultRoomId: randomRoomId });
-
-			// 2. 奖励结算
-			// const rewards = await calculateRewards(gameId,randomRoomId);
-
-			// 3. 广播奖励结果
-			// io.emit('reward_calculated', {
-			// 	gameId: gameId,
-			// 	rewards: rewards
-			// });
-
 			// 4. 清理状态
 			delete gameState[gameId];
+			calculateRewards(gameId, randomRoomId);
 		}
 	}, 1000);
 }
 
-async function calculateRewards(gameId) {
-	// 实际项目中这里可能是数据库查询 + 复杂逻辑
+//todo 如果有错误 重新计算1次
+async function calculateRewards(gameId, resultRoomId) {
+	console.log("开始结算奖励");
+	// 1. 获取所有参与者的信息
+	const gamePlay = await prisma.game_play.findMany({
+		where: {
+			game_id: gameId
+		},
+		select: {
+			user_id: true,
+			room_id: true,
+			bet_coin: true
+		}
+	});
+	// 2. 根据房间号计算赢家
+	//根据房间获取失败玩家的bet总额
+	let loseCoins = 0;
+	const roomBetAmount = {}
+	for (const key in gamePlay) {
+		if (Object.prototype.hasOwnProperty.call(gamePlay, key)) {
+			const element = gamePlay[key];
+			if (element.room_id == resultRoomId) {
+				loseCoins += element.bet_coin;
+			} else {
+				if (roomBetAmount[element.room_id]) {
+					roomBetAmount[element.room_id] += element.bet_coin;
+				} else {
+					roomBetAmount[element.room_id] = element.bet_coin;
+				}
+			}
 
-	return [
-		{ playerId: 'player1', reward: 'Gold: 1000' },
-		{ playerId: 'player2', reward: 'Gold: 800' }
-	];
+		}
+	}
+	const roomBetCount = Object.entries(roomBetAmount).reduce((count, [key, value]) => {
+		return value !== 0 ? count + 1 : count;
+	}, 0);
+	//将奖励代币均分到其余房间
+	const burnCoins = loseCoins * 0.05;
+	const coinPerRoom = (loseCoins * 0.95) / roomBetCount;
+	//根据每个参与者bet的比例瓜分代币
+	const userRewards = {};
+	for (const key in gamePlay) {
+		if (Object.prototype.hasOwnProperty.call(gamePlay, key)) {
+			const element = gamePlay[key];
+			if (roomBetAmount[element.room_id]) {
+				//计算每个参与者应得的奖励
+				const reward = coinPerRoom * element.bet_coin / roomBetAmount[element.room_id];
+				userRewards[element.user_id] = reward + element.bet_coin;
+			}
+		}
+	}
+
+	try {
+		const batchSize = 1000
+		await prisma.$transaction(async (tx) => {
+			// 清空当前会话的临时数据（并发安全）
+			await tx.$executeRaw`TRUNCATE TABLE batch_rewards_temp`
+
+			// 分批插入临时表
+			const entries = Object.entries(userRewards)
+			for (let i = 0; i < entries.length; i += batchSize) {
+				const batch = entries.slice(i, i + batchSize)
+				await tx.batch_rewards_temp.createMany({
+					data: batch.map(([userId, reward]) => ({
+						user_id: parseInt(userId),
+						reward: BigInt(parseInt(reward * 10 ** 6)),
+						game_id: gameId
+					}))
+				});
+			}
+
+			// 执行批量更新（原生SQL提升性能）
+			await tx.$executeRaw`
+				UPDATE game_play gp
+				JOIN batch_rewards_temp tmp ON gp.user_id = tmp.user_id
+				SET gp.reward = tmp.reward
+				WHERE gp.game_id = ${gameId}
+			`;
+			await tx.$executeRaw`
+				UPDATE game_play SET status = 1 WHERE game_id = ${gameId}
+			`;
+			//给用户余额增加
+			await tx.$executeRaw`
+				UPDATE user u
+				JOIN batch_rewards_temp tmp ON u.id = tmp.user_id
+				SET u.coins = u.coins + tmp.reward;
+			`;
+			await tx.game.update({
+				where: { id: gameId },
+				data: { status: "done", win_room_id: resultRoomId, end_time: Math.floor(Date.now() / 1000) }
+			});
+			//往game 中新增一条数据
+			await tx.game.create({
+				data: {}
+			});
+		})
+	} catch (err) {
+		console.log(err);
+	} finally {
+		// await prisma.$executeRaw`TRUNCATE TABLE batch_rewards_temp`
+	}
+}
+
+export const getGameRewards = async (req, res) => {
+	// const user_id = req.user.id
+	const user_id = 1
+	if (!user_id) {
+		return res.status(400).json({ error: 'user not found' });
+	}
+	const { gameId } = req.body;
+	if (!gameId) {
+		return errorRes(res, 'Game is required');
+	}
+	try {
+		const activeGame = await prisma.game.findFirst({
+			where: {
+				id: gameId,
+				status: "done",
+			},
+			select: { win_room_id: true }
+		});
+		if (!activeGame) {
+			return errorRes(res, 'Game is not completed');
+		}
+		//获取当前游戏的所有参与者信息
+		const gamePlay = await prisma.game_play.findFirst({
+			where: {
+				game_id: gameId,
+				user_id: user_id
+			},
+			select: {
+				reward: true,
+				status: true,
+				room_id: true,
+				bet_coin: true
+			}
+		});
+		let reward = 0
+		let hasRes = gamePlay.status == 1
+		let isWin = activeGame.win_room_id == gamePlay.room_id ? false : true;
+		let betCoin = gamePlay.bet_coin;
+
+		if (gamePlay.length > 0) {
+			reward = gamePlay.reward;
+		}
+		return successRes(res, { reward, hasRes, isWin, betCoin });
+	} catch (err) {
+		return errorRes(res, err.message);
+	}
 }
 
 export const testJoin = async (req, res) => {
@@ -305,6 +446,24 @@ export const testMoveBack = async (req, res) => {
 		// io.emit('user_joined', {userId: userId,type: "user_joined"});
 		io.emit('move_back', { type: "move_back" });
 		res.json({ message: `User joined room successfully` });
+	} catch (err) {
+		res.status(500).json({ error: err.message });
+	}
+};
+export const testGameEnd = async (req, res) => {
+	try {
+		const io = getIO();
+		// io.emit('user_joined', {userId: userId,type: "user_joined"});
+		io.emit('game_end', { type: "game_end" });
+		res.json({ message: `User joined room successfully` });
+	} catch (err) {
+		res.status(500).json({ error: err.message });
+	}
+};
+export const testCalculateRewards = async (req, res) => {
+	try {
+		calculateRewards(1, 7)
+		res.json({ message: `successfully` });
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
