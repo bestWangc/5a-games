@@ -50,7 +50,7 @@ const MintNFT: React.FC = () => {
   return (
     <div>
       <h1>Mint NFT</h1>
-      {mintPrice && <p>Mint Price: {mintPrice} ETH</p>}
+      {mintPrice && <p>Mint Price: {mintPrice} SOL</p>}
       <button onClick={mintNFT}>Mint NFT</button>
       {message && <p>{message}</p>}
     </div>

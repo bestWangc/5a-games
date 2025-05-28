@@ -32,7 +32,7 @@ const NftItemBox = ({ item }: { item: INftType }) => {
           <div className="nft-item__price">
             <p>
               {item.eth}
-              <span className="currency">Eth</span>
+              <span className="currency">SOL</span>
             </p>
             <Link href="/shop-details" className="bid-btn">
               Bid <i className="fas fa-long-arrow-alt-right"></i>

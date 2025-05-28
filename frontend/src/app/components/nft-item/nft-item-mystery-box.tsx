@@ -119,7 +119,7 @@ const NftItemMysteryBox = ({ item }: { item: INftType }) => {
           <div className="nft-item__price">
             <p>
               {item.eth}
-              <span className="currency">Eth</span>
+              <span className="currency">SOL</span>
             </p>
             {/* <Link href="/shop-details" className="bid-btn"> */}
             <button onClick={mintNFT} className="bid-btn">
